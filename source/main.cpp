@@ -11,6 +11,9 @@
 
 #include "graphics_internal.hpp"
 #include "application.hpp"
+#include "octahedron.hpp"
+#include "pipeline.hpp"
+#include "uniforms.hpp"
 
 namespace {
 
@@ -66,10 +69,28 @@ int main() {
 		goto err_graphics_init;
 	}
 
+	if (!octahedron::createBuffers(graphics::internal::context.allocator)) {
+		std::cerr << "Failed to create octahedron buffers\n";
+		status = EXIT_FAILURE;
+		goto err_octahedron_buffers;
+	}
+
+	if (!uniforms::create(graphics::internal::context.allocator)) {
+		std::cerr << "Failed to create uniforms\n";
+		status = EXIT_FAILURE;
+		goto err_uniforms;
+	}
+
+	if (!pipeline::create(graphics::internal::context.render_pass)) {
+		std::cerr << "Failed to create pipeline\n";
+		status = EXIT_FAILURE;
+		goto err_pipeline;
+	}
+
 	if (!application::initialize()) {
 		std::cerr << "Failed to initialize application\n";
 		status = EXIT_FAILURE;
-		goto err_application_init;
+		goto err_application;
 	}
 
 	while (!glfwWindowShouldClose(glfw_window)) {
@@ -88,7 +109,13 @@ int main() {
 	}
 
 	application::shutdown();
-err_application_init:
+err_application:
+	pipeline::destroy();
+err_pipeline:
+	uniforms::destroy(graphics::internal::context.allocator);
+err_uniforms:
+	octahedron::destroyBuffers(graphics::internal::context.allocator);
+err_octahedron_buffers:
 	graphics::internal::shutdown();
 err_graphics_init:
 	ImGui_ImplGlfw_Shutdown();
@@ -99,5 +126,5 @@ err_imgui_init:
 err_null_window:
 	glfwTerminate();
 
-	return 0;
+	return status;
 }
