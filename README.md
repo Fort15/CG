@@ -16,12 +16,10 @@
 
 - C++20 компилятор (GCC 10+, Clang 10+, MSVC 2019+)
 - CMake 3.21+
-- Vulkan SDK 1.4+ (`glslc` должен быть в `PATH`)
+- Vulkan SDK 1.4+
 - GLFW, glm, vk-bootstrap, VMA, ImGui — скачиваются автоматически через CMake `FetchContent`
 
-**Проверить, что `glslc` доступен:**
 ```bash
-glslc --version
 
 ## Сборка
 
