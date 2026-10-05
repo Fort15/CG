@@ -41,5 +41,4 @@ cmake --build build-debug --parallel
 ## Запуск
 
 ### Linux
-
-    ./build-debug/vulkan-starter-app
+./build-debug/vulkan-starter-app
