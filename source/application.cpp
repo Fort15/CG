@@ -13,14 +13,45 @@ namespace application {
 
 namespace {
 
+struct PointLightState {
+    glm::vec3 position = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 color = glm::vec3(1.0f);
+    float intensity = 1.0f;
+};
+
+struct SpotLightState {
+    glm::vec3 position = glm::vec3(2.0f, 2.0f, 2.0f);
+    glm::vec3 direction = glm::vec3(-1.0f, -1.0f, -1.0f);
+    glm::vec3 color = glm::vec3(1.0f);
+    float intensity = 1.0f;
+    float inner_angle = 15.0f;
+    float outer_angle = 30.0f;
+};
+
 struct State {
     int use_perspective = 1;
+
+    glm::vec3 camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+    glm::vec3 camera_target = glm::vec3(0.0f, 0.0f, 0.0f);
+    float camera_fov = 45.0f;
+
+    glm::vec3 light_direction = glm::vec3(0.3f, -1.0f, -0.5f);
+    glm::vec3 light_color = glm::vec3(1.0f);
+    glm::vec3 ambient_color = glm::vec3(0.1f);
+
+    glm::vec3 material_albedo = glm::vec3(1.0f);
+    glm::vec3 material_specular = glm::vec3(1.0f);
+    float material_alpha = 32.0f;
+
+    PointLightState point_lights[uniforms::MAX_POINT_LIGHTS];
+    int point_light_count = 0;
+
+    SpotLightState spot_lights[uniforms::MAX_SPOT_LIGHTS];
+    int spot_light_count = 0;
 
     glm::vec3 position = glm::vec3(0.0f);
     glm::vec3 rotation = glm::vec3(0.0f);
     glm::vec3 scale = glm::vec3(1.0f);
-
-    glm::vec3 color = glm::vec3(1.0f);
 
     bool animate_trajectory = true;
     float trajectory_radius = 1.5f;
@@ -59,15 +90,99 @@ void update([[maybe_unused]] double time) {
 
     ImGui::Separator();
 
-    ImGui::Text("Color");
-    ImGui::ColorEdit3("Shape color", &state.color.x);
-
-    ImGui::Separator();
-
     ImGui::Text("Animation");
 	ImGui::Checkbox("Animate trajectory", &state.animate_trajectory);
 	ImGui::SliderFloat("Trajectory radius", &state.trajectory_radius, 0.0f, 5.0f);
 	ImGui::SliderFloat("Trajectory speed", &state.trajectory_speed, 0.0f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Camera");
+    ImGui::SliderFloat3("Cam Position", &state.camera_position.x, -10.0f, 10.0f);
+    ImGui::SliderFloat3("Cam Target", &state.camera_target.x, -10.0f, 10.0f);
+    ImGui::SliderFloat("FOV", &state.camera_fov, 10.0f, 120.0f);
+    if (ImGui::Button("Reset Camera")) {
+        state.camera_position = glm::vec3(0.0f, 0.0f, 3.0f);
+        state.camera_target = glm::vec3(0.0f, 0.0f, 0.0f);
+        state.camera_fov = 45.0f;
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Directional Light");
+    ImGui::SliderFloat3("Light Dir", &state.light_direction.x, -1.0f, 1.0f);
+    ImGui::ColorEdit3("Light Color", &state.light_color.x);
+    ImGui::ColorEdit3("Ambient", &state.ambient_color.x);
+
+    ImGui::Separator();
+    ImGui::Text("Material");
+    ImGui::ColorEdit3("Albedo", &state.material_albedo.x);
+    ImGui::ColorEdit3("Specular", &state.material_specular.x);
+    ImGui::SliderFloat("Shininess", &state.material_alpha, 1.0f, 256.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Point Lights (%d/%d)", state.point_light_count, (int)uniforms::MAX_POINT_LIGHTS);
+
+    if (state.point_light_count < (int)uniforms::MAX_POINT_LIGHTS) {
+        if (ImGui::Button("Add Point Light")) {
+            int i = state.point_light_count;
+            state.point_lights[i].position = glm::vec3(1.0f, 1.0f, 1.0f);
+            state.point_lights[i].color = glm::vec3(1.0f);
+            state.point_lights[i].intensity = 1.0f;
+            state.point_light_count++;
+        }
+    }
+
+    for (int i = 0; i < state.point_light_count; ++i) {
+        ImGui::PushID(i);
+        ImGui::Text("Light #%d", i);
+        ImGui::SliderFloat3("Pos", &state.point_lights[i].position.x, -10.0f, 10.0f);
+        ImGui::ColorEdit3("Color", &state.point_lights[i].color.x);
+        ImGui::SliderFloat("Intensity", &state.point_lights[i].intensity, 0.0f, 10.0f);
+        if (ImGui::Button("Delete")) {
+            for (int j = i; j < state.point_light_count - 1; ++j) {
+                state.point_lights[j] = state.point_lights[j + 1];
+            }
+            state.point_light_count--;
+            ImGui::PopID();
+            break;
+        }
+        ImGui::PopID();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Spot Lights (%d/%d)", state.spot_light_count, (int)uniforms::MAX_SPOT_LIGHTS);
+
+    if (state.spot_light_count < (int)uniforms::MAX_SPOT_LIGHTS) {
+        if (ImGui::Button("Add Spot Light")) {
+            int i = state.spot_light_count;
+            state.spot_lights[i].position = glm::vec3(2.0f, 2.0f, 2.0f);
+            state.spot_lights[i].direction = glm::vec3(-1.0f, -1.0f, -1.0f);
+            state.spot_lights[i].color = glm::vec3(1.0f);
+            state.spot_lights[i].intensity = 2.0f;
+            state.spot_lights[i].inner_angle = 15.0f;
+            state.spot_lights[i].outer_angle = 30.0f;
+            state.spot_light_count++;
+        }
+    }
+
+    for (int i = 0; i < state.spot_light_count; ++i) {
+        ImGui::PushID(1000 + i);
+        ImGui::Text("Spot #%d", i);
+        ImGui::SliderFloat3("Pos", &state.spot_lights[i].position.x, -10.0f, 10.0f);
+        ImGui::SliderFloat3("Dir", &state.spot_lights[i].direction.x, -1.0f, 1.0f);
+        ImGui::ColorEdit3("Color", &state.spot_lights[i].color.x);
+        ImGui::SliderFloat("Intensity", &state.spot_lights[i].intensity, 0.0f, 10.0f);
+        ImGui::SliderFloat("Inner", &state.spot_lights[i].inner_angle, 1.0f, 60.0f);
+        ImGui::SliderFloat("Outer", &state.spot_lights[i].outer_angle, 1.0f, 90.0f);
+        if (ImGui::Button("Delete")) {
+            for (int j = i; j < state.spot_light_count - 1; ++j) {
+                state.spot_lights[j] = state.spot_lights[j + 1];
+            }
+            state.spot_light_count--;
+            ImGui::PopID();
+            break;
+        }
+        ImGui::PopID();
+    }
 
 	ImGui::Checkbox("Spin", &state.spin);
 	ImGui::SliderFloat("Spin speed", &state.spin_speed, 0.0f, 5.0f);
@@ -82,9 +197,15 @@ void update([[maybe_unused]] double time) {
 
     const float t = static_cast<float>(time);
 
+    glm::vec3 cam_target = state.camera_target;
+    glm::vec3 cam_pos = state.camera_position;
+    if (glm::length(cam_target - cam_pos) < 0.001f) {
+        cam_target = cam_pos + glm::vec3(0.0f, 0.0f, -1.0f);
+    }
+
     glm::mat4 view = glm::lookAt(
-        glm::vec3(0.0f, 0.0f, 3.0f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
+        cam_pos,
+        cam_target,
         glm::vec3(0.0f, 1.0f, 0.0f)
     );
 
@@ -92,12 +213,12 @@ void update([[maybe_unused]] double time) {
                          (float)graphics::internal::context.swapchain_extent.height;
 
     glm::mat4 proj;
+    const float fov_rad = glm::radians(state.camera_fov);
     if (state.use_perspective) {
-        proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        proj = glm::perspective(fov_rad, aspect, 0.1f, 100.0f);
     } else {
-        const float distance = 3.0f;
-        const float fov = glm::radians(45.0f);
-        const float visible_height = 2.0f * distance * glm::tan(fov / 2.0f);
+        const float distance = glm::length(state.camera_target - state.camera_position);
+        const float visible_height = 2.0f * distance * glm::tan(fov_rad / 2.0f);
         proj = glm::ortho(-visible_height * aspect / 2.0f,
                            visible_height * aspect / 2.0f,
                           -visible_height / 2.0f,
@@ -105,6 +226,38 @@ void update([[maybe_unused]] double time) {
                           -100.0f, 100.0f);
     }
     proj[1][1] *= -1.0f;
+
+    auto* scene = uniforms::getSceneMemory();
+    scene->view_projection = proj * view;
+    scene->camera_position = glm::vec4(state.camera_position, 1.0f);
+
+    glm::vec3 light_dir_n = glm::normalize(state.light_direction);
+    scene->light_direction = glm::vec4(light_dir_n, 0.0f);
+    scene->light_color = glm::vec4(state.light_color, 1.0f);
+    scene->ambient_color = glm::vec4(state.ambient_color, 1.0f);
+
+    scene->point_light_count = glm::uvec4(static_cast<uint32_t>(state.point_light_count), 0, 0, 0);
+
+    auto* pl_mem = uniforms::getPointLightsMemory();
+    for (int i = 0; i < state.point_light_count; ++i) {
+        pl_mem[i].position = glm::vec4(state.point_lights[i].position, 1.0f);
+        pl_mem[i].color = glm::vec4(state.point_lights[i].color, state.point_lights[i].intensity);
+    }
+
+    scene->spot_light_count = glm::uvec4(static_cast<uint32_t>(state.spot_light_count), 0, 0, 0);
+
+    auto* sl_mem = uniforms::getSpotLightsMemory();
+    for (int i = 0; i < state.spot_light_count; ++i) {
+        sl_mem[i].position = glm::vec4(state.spot_lights[i].position, 1.0f);
+        sl_mem[i].direction = glm::vec4(glm::normalize(state.spot_lights[i].direction), 0.0f);
+        sl_mem[i].color = glm::vec4(
+            state.spot_lights[i].color,
+            state.spot_lights[i].intensity
+        );
+        float inner_cos = glm::cos(glm::radians(state.spot_lights[i].inner_angle));
+        float outer_cos = glm::cos(glm::radians(state.spot_lights[i].outer_angle));
+        sl_mem[i].params = glm::vec4(inner_cos, outer_cos, 0.0f, 0.0f);
+    }
 
     glm::vec3 trajectory_offset = glm::vec3(0.0f);
     if (state.animate_trajectory) {
@@ -138,18 +291,16 @@ void update([[maybe_unused]] double time) {
 
         model = glm::scale(model, state.scale * 0.5f);
 
-        glm::mat4 mvp = proj * view * model;
-
-        glm::vec4 color = glm::vec4(
-            state.color.r * (0.5f + 0.5f * glm::cos(obj_angle)),
-            state.color.g * (0.5f + 0.5f * glm::sin(obj_angle)),
-            state.color.b,
+        auto* mem = uniforms::getModelMemory((uint32_t)i);
+        mem->model = model;
+        glm::vec3 per_object_tint = glm::vec3(
+            0.5f + 0.5f * glm::cos(obj_angle),
+            0.5f + 0.5f * glm::sin(obj_angle),
             1.0f
         );
-
-        auto* mem = uniforms::getMappedMemory((uint32_t)i);
-        mem->mvp = mvp;
-        mem->color = color;
+        mem->albedo = glm::vec4(state.material_albedo * per_object_tint, 1.0f);
+        mem->specular = glm::vec4(state.material_specular, 1.0f);
+        mem->params = glm::vec4(state.material_alpha, 0.0f, 0.0f, 0.0f);
     }
 }
 
@@ -197,12 +348,16 @@ void render(const graphics::internal::FrameData& fd) {
 	vkCmdBindVertexBuffers(cmd, 0, 1, &vb, &vertex_offset);
 	vkCmdBindIndexBuffer(cmd, octahedron::getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-	for (int i = 0; i < state.object_count; ++i) {
-		const VkDescriptorSet set = uniforms::getDescriptorSet((uint32_t)i);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-								pipeline::getLayout(), 0, 1, &set, 0, nullptr);
-		vkCmdDrawIndexed(cmd, octahedron::index_count, 1, 0, 0, 0);
-	}
+    const VkDescriptorSet scene_set = uniforms::getSceneSet();
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipeline::getLayout(), 0, 1, &scene_set, 0, nullptr);
+
+    for (int i = 0; i < state.object_count; ++i) {
+        const VkDescriptorSet model_set = uniforms::getModelSet((uint32_t)i);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline::getLayout(), 1, 1, &model_set, 0, nullptr);
+        vkCmdDrawIndexed(cmd, octahedron::index_count, 1, 0, 0, 0);
+    }
 
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);

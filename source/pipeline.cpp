@@ -75,7 +75,7 @@ bool create(VkRenderPass render_pass) {
     const VkVertexInputBindingDescription vertex_bindings[] = {
         {
             .binding = 0,
-            .stride = sizeof(float) * 6,
+            .stride = sizeof(float) * 9,
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
         },
     };
@@ -93,13 +93,19 @@ bool create(VkRenderPass render_pass) {
             .format = VK_FORMAT_R32G32B32_SFLOAT,
             .offset = sizeof(float) * 3,
         },
+        {
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = sizeof(float) * 6,
+        },
     };
 
     const VkPipelineVertexInputStateCreateInfo vertex_input = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .vertexBindingDescriptionCount = 1,
         .pVertexBindingDescriptions = vertex_bindings,
-        .vertexAttributeDescriptionCount = 2,
+        .vertexAttributeDescriptionCount = 3,
         .pVertexAttributeDescriptions = vertex_attributes,
     };
 
@@ -167,12 +173,15 @@ bool create(VkRenderPass render_pass) {
         .pDynamicStates = dynamic_states,
     };
 
-    const VkDescriptorSetLayout descriptor_layout = uniforms::getDescriptorSetLayout();
+    const VkDescriptorSetLayout set_layouts[] = {
+        uniforms::getSceneLayout(),
+        uniforms::getModelLayout(),
+    };
 
     const VkPipelineLayoutCreateInfo layout_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &descriptor_layout,
+        .setLayoutCount = 2,
+        .pSetLayouts = set_layouts,
     };
     if (vkCreatePipelineLayout(graphics::internal::context.device, &layout_info,
                                nullptr, &vk_pipeline_layout) != VK_SUCCESS) {
