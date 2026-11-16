@@ -64,38 +64,52 @@ struct State {
     float spin_speed = 1.0f;
 
     int object_count = 4;
+
+    int texture_indices[uniforms::MAX_OBJECTS] = {};
+
+    bool effect_enabled = false;
+    float effect_strength = 0.02f;
+    float effect_speed = 1.0f;
+    float effect_time = 0.0f;
 } state;
 
-textures::Texture brick_texture;
+textures::Texture loaded_textures[uniforms::MAX_TEXTURES] = {};
 
 } // namespace
 
 bool initialize() {
-    textures::ImageData image;
-
-    if (!textures::loadImage("textures/brick.jpg", image)) {
-        return false;
-    }
+    const char* texture_paths[uniforms::MAX_TEXTURES] = {
+        "textures/brick.jpg",
+        "textures/wood.jpg"
+    };
 
     auto allocator = graphics::internal::context.allocator;
 
-    if (!textures::createImage(allocator, image, brick_texture)) {
-        return false;
-    }
+    for (uint32_t i = 0; i < uniforms::MAX_TEXTURES; ++i) {
+        textures::ImageData image;
 
-    uniforms::setTexture(brick_texture);
+        if (!textures::loadImage(texture_paths[i], image)) {
+            return false;
+        }
+
+        if (!textures::createImage(allocator, image, loaded_textures[i])) {
+            return false;
+        }
+
+        uniforms::setTexture(loaded_textures[i], i);
+    }
 
     return true;
 }
 
 void shutdown() {
-	auto& context = graphics::internal::context;
-	vkQueueWaitIdle(context.graphics_queue);
+    auto& context = graphics::internal::context;
 
-    textures::destroyImage(
-        context.allocator,
-        brick_texture
-    );
+    vkDeviceWaitIdle(context.device);
+
+    for (uint32_t i = 0; i < uniforms::MAX_TEXTURES; ++i) {
+        textures::destroyImage(context.allocator, loaded_textures[i]);
+    }
 }
 
 void update([[maybe_unused]] double time) {
@@ -217,10 +231,42 @@ void update([[maybe_unused]] double time) {
 	ImGui::Text("Objects");
 	ImGui::SliderInt("Count", &state.object_count, 1, uniforms::MAX_OBJECTS);
 
+    ImGui::Separator();
+    ImGui::Text("Textures");
+
+    const char* texture_names[] = {
+        "Brick",
+        "Wood"
+    };
+
+    for (int i = 0; i < state.object_count; ++i) {
+        ImGui::PushID(i);
+
+        ImGui::Text("Object %d", i);
+        ImGui::Combo(
+            "Texture",
+            &state.texture_indices[i],
+            texture_names,
+            uniforms::MAX_TEXTURES
+        );
+
+        ImGui::PopID();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Texture Effect");
+
+    ImGui::Checkbox("Enable Wave Effect", &state.effect_enabled);
+
+    ImGui::SliderFloat("Wave Strength", &state.effect_strength, 0.0f, 0.1f);
+
+    ImGui::SliderFloat("Wave Speed", &state.effect_speed, 0.0f, 5.0f);
+
     ImGui::End();
 
 
     const float t = static_cast<float>(time);
+    state.effect_time = t;
 
     glm::vec3 cam_target = state.camera_target;
     glm::vec3 cam_pos = state.camera_position;
@@ -384,12 +430,25 @@ void render(const graphics::internal::FrameData& fd) {
                             pipeline::getLayout(), 0, 1, &scene_set, 0, nullptr);
 
     for (int i = 0; i < state.object_count; ++i) {
-        const VkDescriptorSet model_set = uniforms::getModelSet((uint32_t)i);
+        const uint32_t texture_index = static_cast<uint32_t>(state.texture_indices[i]);
+
+        const VkDescriptorSet model_set = uniforms::getModelSet(texture_index);
 
         const uint32_t dynamic_offset = uniforms::getModelDynamicOffset((uint32_t)i);
 
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline::getLayout(),
-                                1, 1, &model_set, 1, &dynamic_offset);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline::getLayout(), 1, 1,
+                                &model_set, 1, &dynamic_offset);
+
+        const pipeline::TextureEffectPushConstants effect = {
+            .enabled = (state.effect_enabled && i == 0) ? 1u : 0u,
+            .time = state.effect_time,
+            .strength = state.effect_strength,
+            .speed = state.effect_speed,
+        };
+
+        vkCmdPushConstants(cmd, pipeline::getLayout(), VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0, sizeof(effect), &effect);
 
         vkCmdDrawIndexed(cmd, octahedron::index_count, 1, 0, 0, 0);
     }

@@ -11,6 +11,7 @@
 namespace uniforms {
 
 constexpr uint32_t MAX_OBJECTS = 4;
+constexpr uint32_t MAX_TEXTURES = 2;
 constexpr uint32_t MAX_POINT_LIGHTS = 8;
 constexpr uint32_t MAX_SPOT_LIGHTS = 8;
 
@@ -59,6 +60,6 @@ uint32_t getModelDynamicOffset(uint32_t index);
 PointLightGPU* getPointLightsMemory();
 SpotLightGPU* getSpotLightsMemory();
 
-void setTexture(const textures::Texture& texture);
+void setTexture(const textures::Texture& texture, uint32_t texture_index);
 
 } // namespace uniforms

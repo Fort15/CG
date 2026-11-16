@@ -7,6 +7,13 @@ layout(location = 3) in vec2 in_uv;
 
 layout(set = 1, binding = 1) uniform sampler2D albedo_texture;
 
+layout(push_constant) uniform TextureEffectPushConstants {
+    uint enabled;
+    float time;
+    float strength;
+    float speed;
+} effect;
+
 layout(location = 0) out vec4 out_color;
 
 struct PointLight {
@@ -46,10 +53,36 @@ layout(std140, set = 1, binding = 0) uniform ModelUniforms {
     vec4 params;
 } model_data;
 
+vec3 sampleAlbedo(vec2 uv) {
+    if (effect.enabled == 0u) {
+        return texture(albedo_texture, uv).rgb;
+    }
+
+    float t = effect.time * effect.speed;
+
+    vec2 wave = vec2(sin(uv.y * 20.0 + t), cos(uv.x * 20.0 + t)) * effect.strength;
+
+    vec2 uv1 = uv + wave;
+    vec2 uv2 = uv + wave + vec2(0.015, 0.0);
+    vec2 uv3 = uv + wave + vec2(0.0, 0.015);
+
+    vec3 color1 = texture(albedo_texture, uv1).rgb;
+    vec3 color2 = texture(albedo_texture, uv2).rgb;
+    vec3 color3 = texture(albedo_texture, uv3).rgb;
+
+    vec3 mixed_color = color1 * 0.6 + color2 * 0.2 + color3 * 0.2;
+
+    float pulse = 0.85 + 0.15 * sin(t * 2.0);
+
+    vec3 tint = vec3(1.0, 0.85 + 0.15 * sin(t), 0.85 + 0.15 * cos(t));
+
+    return mixed_color * tint * pulse;
+}
+
 void main() {
     vec3 N = normalize(in_normal);
     vec3 V = normalize(scene.camera_position.xyz - in_world_position);
-    vec3 base_color = texture(albedo_texture, in_uv).rgb;
+    vec3 base_color = sampleAlbedo(in_uv);
 
     vec3 result = scene.ambient_color.rgb * base_color;
 

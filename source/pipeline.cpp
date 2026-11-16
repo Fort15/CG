@@ -186,10 +186,18 @@ bool create(VkRenderPass render_pass) {
         uniforms::getModelLayout(),
     };
 
+    const VkPushConstantRange push_constant_range = {
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = sizeof(TextureEffectPushConstants),
+    };
+
     const VkPipelineLayoutCreateInfo layout_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 2,
         .pSetLayouts = set_layouts,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_constant_range,
     };
     if (vkCreatePipelineLayout(graphics::internal::context.device, &layout_info,
                                nullptr, &vk_pipeline_layout) != VK_SUCCESS) {

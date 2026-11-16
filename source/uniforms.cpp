@@ -30,7 +30,7 @@ VkDescriptorSetLayout model_layout = VK_NULL_HANDLE;
 VkDescriptorPool pool = VK_NULL_HANDLE;
 
 VkDescriptorSet scene_set = VK_NULL_HANDLE;
-VkDescriptorSet model_sets[MAX_OBJECTS] = {};
+VkDescriptorSet model_sets[MAX_TEXTURES] = {};
 
 VkDeviceSize align_up(VkDeviceSize value, VkDeviceSize alignment) {
     return ((value + alignment - 1) / alignment) * alignment;
@@ -229,13 +229,13 @@ bool create(VmaAllocator allocator) {
         },
         {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = MAX_OBJECTS,
+            .descriptorCount = MAX_TEXTURES,
         },
     };
 
     const VkDescriptorPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 1 + MAX_OBJECTS,
+        .maxSets = 1 + MAX_TEXTURES,
         .poolSizeCount = 4,
         .pPoolSizes = pool_sizes,
     };
@@ -296,13 +296,13 @@ bool create(VmaAllocator allocator) {
 
 
 
-    VkDescriptorSetLayout layouts[MAX_OBJECTS];
-    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) layouts[i] = model_layout;
+    VkDescriptorSetLayout layouts[MAX_TEXTURES];
+    for (uint32_t i = 0; i < MAX_TEXTURES; ++i) layouts[i] = model_layout;
 
     const VkDescriptorSetAllocateInfo model_alloc_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = pool,
-        .descriptorSetCount = MAX_OBJECTS,
+        .descriptorSetCount = MAX_TEXTURES,
         .pSetLayouts = layouts,
     };
     if (vkAllocateDescriptorSets(graphics::internal::context.device, &model_alloc_info,
@@ -311,7 +311,7 @@ bool create(VmaAllocator allocator) {
         return false;
     }
 
-    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
+    for (uint32_t i = 0; i < MAX_TEXTURES; ++i) {
         VkDescriptorBufferInfo buf_info = {
             .buffer = model_buffer,
             .offset = 0,
@@ -333,26 +333,28 @@ bool create(VmaAllocator allocator) {
     return true;
 }
 
-void setTexture(const textures::Texture& texture) {
+void setTexture(const textures::Texture& texture, uint32_t texture_index) {
+    if (texture_index >= MAX_TEXTURES) {
+        return;
+    }
+
     const VkDescriptorImageInfo image_info = {
         .sampler = texture.sampler,
         .imageView = texture.image_view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
-    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
-        const VkWriteDescriptorSet write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = model_sets[i],
-            .dstBinding = 1,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &image_info,
-        };
+    const VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = model_sets[texture_index],
+        .dstBinding = 1,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = &image_info,
+    };
 
-        vkUpdateDescriptorSets(graphics::internal::context.device, 1, &write, 0, nullptr);
-    }
+    vkUpdateDescriptorSets(graphics::internal::context.device, 1, &write, 0, nullptr);
 }
 
 void destroy(VmaAllocator allocator) {
