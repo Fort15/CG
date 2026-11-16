@@ -54,6 +54,8 @@ VkDescriptorSet getModelSet(uint32_t index);
 
 SceneUniforms* getSceneMemory();
 ModelUniforms* getModelMemory(uint32_t index);
+uint32_t getModelDynamicOffset(uint32_t index);
+
 PointLightGPU* getPointLightsMemory();
 SpotLightGPU* getSpotLightsMemory();
 

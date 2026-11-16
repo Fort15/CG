@@ -19,9 +19,11 @@ VkBuffer scene_buffer = VK_NULL_HANDLE;
 VmaAllocation scene_alloc = VK_NULL_HANDLE;
 SceneUniforms* scene_mem = nullptr;
 
-VkBuffer model_buffers[MAX_OBJECTS] = {};
-VmaAllocation model_allocs[MAX_OBJECTS] = {};
-ModelUniforms* model_mems[MAX_OBJECTS] = {};
+VkBuffer model_buffer = VK_NULL_HANDLE;
+VmaAllocation model_alloc = VK_NULL_HANDLE;
+ModelUniforms* model_mem = nullptr;
+
+VkDeviceSize model_stride = 0;
 
 VkDescriptorSetLayout scene_layout = VK_NULL_HANDLE;
 VkDescriptorSetLayout model_layout = VK_NULL_HANDLE;
@@ -29,6 +31,10 @@ VkDescriptorPool pool = VK_NULL_HANDLE;
 
 VkDescriptorSet scene_set = VK_NULL_HANDLE;
 VkDescriptorSet model_sets[MAX_OBJECTS] = {};
+
+VkDeviceSize align_up(VkDeviceSize value, VkDeviceSize alignment) {
+    return ((value + alignment - 1) / alignment) * alignment;
+}
 
 bool create_buffer(VmaAllocator allocator, VkDeviceSize size, VkBuffer* out_buf, VmaAllocation* out_alloc, void** out_mapped) {
     const VkBufferCreateInfo info = {
@@ -85,7 +91,7 @@ VkDescriptorSetLayout create_model_layout() {
     const VkDescriptorSetLayoutBinding bindings[] = {
         {
             .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
                           VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -118,7 +124,23 @@ VkDescriptorSetLayout getModelLayout() { return model_layout; }
 VkDescriptorSet getSceneSet() { return scene_set; }
 VkDescriptorSet getModelSet(uint32_t i) { return model_sets[i]; }
 SceneUniforms* getSceneMemory() { return scene_mem; }
-ModelUniforms* getModelMemory(uint32_t i) { return model_mems[i]; }
+
+ModelUniforms* getModelMemory(uint32_t i) {
+    if (i >= MAX_OBJECTS || model_mem == nullptr) {
+        return nullptr;
+    }
+
+    return reinterpret_cast<ModelUniforms*>(reinterpret_cast<char*>(model_mem) + i * model_stride);
+}
+
+uint32_t getModelDynamicOffset(uint32_t i) {
+    if (i >= MAX_OBJECTS) {
+        return 0;
+    }
+
+    return static_cast<uint32_t>(i * model_stride);
+}
+
 PointLightGPU* getPointLightsMemory() { return point_lights_mem; }
 SpotLightGPU* getSpotLightsMemory() { return spot_lights_mem; }
 
@@ -129,12 +151,18 @@ bool create(VmaAllocator allocator) {
         return false;
     }
 
-    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
-        if (!create_buffer(allocator, sizeof(ModelUniforms), &model_buffers[i], &model_allocs[i],
-                           reinterpret_cast<void**>(&model_mems[i]))) {
-            std::cerr << "Failed to create model uniform buffer #" << i << "\n";
-            return false;
-        }
+    VkPhysicalDeviceProperties properties{};
+
+    vkGetPhysicalDeviceProperties(graphics::internal::context.physical_device, &properties);
+
+    model_stride = align_up(sizeof(ModelUniforms), properties.limits.minUniformBufferOffsetAlignment);
+
+    const VkDeviceSize model_buffer_size = model_stride * MAX_OBJECTS;
+
+    if (!create_buffer(allocator, model_buffer_size, &model_buffer,
+                    &model_alloc, reinterpret_cast<void**>(&model_mem))) {
+        std::cerr << "Failed to create dynamic model uniform buffer\n";
+        return false;
     }
 
     const VkBufferCreateInfo pl_info = {
@@ -189,7 +217,11 @@ bool create(VmaAllocator allocator) {
     const VkDescriptorPoolSize pool_sizes[] = {
         {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1 + MAX_OBJECTS,
+            .descriptorCount = 1,
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = MAX_OBJECTS,
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -204,7 +236,7 @@ bool create(VmaAllocator allocator) {
     const VkDescriptorPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .maxSets = 1 + MAX_OBJECTS,
-        .poolSizeCount = 3,
+        .poolSizeCount = 4,
         .pPoolSizes = pool_sizes,
     };
     if (vkCreateDescriptorPool(graphics::internal::context.device, &pool_info,
@@ -281,14 +313,20 @@ bool create(VmaAllocator allocator) {
 
     for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
         VkDescriptorBufferInfo buf_info = {
-            .buffer = model_buffers[i], .offset = 0, .range = sizeof(ModelUniforms),
+            .buffer = model_buffer,
+            .offset = 0,
+            .range = sizeof(ModelUniforms),
         };
+
         VkWriteDescriptorSet write = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = model_sets[i], .dstBinding = 0, .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .dstSet = model_sets[i],
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .pBufferInfo = &buf_info,
         };
+
         vkUpdateDescriptorSets(graphics::internal::context.device, 1, &write, 0, nullptr);
     }
 
@@ -345,12 +383,12 @@ void destroy(VmaAllocator allocator) {
         scene_buffer = VK_NULL_HANDLE;
         scene_mem = nullptr;
     }
-    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
-        if (model_buffers[i] != VK_NULL_HANDLE) {
-            vmaDestroyBuffer(allocator, model_buffers[i], model_allocs[i]);
-            model_buffers[i] = VK_NULL_HANDLE;
-            model_mems[i] = nullptr;
-        }
+    if (model_buffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(allocator, model_buffer, model_alloc);
+
+        model_buffer = VK_NULL_HANDLE;
+        model_mem = nullptr;
+        model_stride = 0;
     }
 }
 

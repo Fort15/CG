@@ -385,8 +385,12 @@ void render(const graphics::internal::FrameData& fd) {
 
     for (int i = 0; i < state.object_count; ++i) {
         const VkDescriptorSet model_set = uniforms::getModelSet((uint32_t)i);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline::getLayout(), 1, 1, &model_set, 0, nullptr);
+
+        const uint32_t dynamic_offset = uniforms::getModelDynamicOffset((uint32_t)i);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline::getLayout(),
+                                1, 1, &model_set, 1, &dynamic_offset);
+
         vkCmdDrawIndexed(cmd, octahedron::index_count, 1, 0, 0, 0);
     }
 
