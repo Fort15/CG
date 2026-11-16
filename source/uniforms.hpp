@@ -6,6 +6,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+#include "textures.hpp"
+
 namespace uniforms {
 
 constexpr uint32_t MAX_OBJECTS = 4;
@@ -54,5 +56,7 @@ SceneUniforms* getSceneMemory();
 ModelUniforms* getModelMemory(uint32_t index);
 PointLightGPU* getPointLightsMemory();
 SpotLightGPU* getSpotLightsMemory();
+
+void setTexture(const textures::Texture& texture);
 
 } // namespace uniforms

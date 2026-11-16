@@ -46,7 +46,7 @@ std::vector<Vertex> generate_vertices() {
     std::vector<Vertex> vertices;
     vertices.reserve(24);
 
-    for (int face = 0; face < 8; face++) {
+    for (int face = 0; face < 8; ++face) {
         uint32_t i0 = base_indices[face * 3];
         uint32_t i1 = base_indices[face * 3 + 1];
         uint32_t i2 = base_indices[face * 3 + 2];
@@ -57,22 +57,48 @@ std::vector<Vertex> generate_vertices() {
 
         glm::vec3 edge1 = p1 - p0;
         glm::vec3 edge2 = p2 - p0;
-        glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+        glm::vec3 normal = glm::cross(edge1, edge2);
 
         glm::vec3 face_center = (p0 + p1 + p2) / 3.0f;
-        if (glm::dot(normal, face_center) < 0.0f) normal = -normal;
 
-        for (uint32_t idx : {i0, i1, i2}) {
-            Vertex v = {};
-            v.position[0] = base_positions[idx][0];
-            v.position[1] = base_positions[idx][1];
-            v.position[2] = base_positions[idx][2];
+        if (glm::dot(normal, face_center) < 0.0f) {
+            std::swap(i1, i2);
+
+            p1 = glm::vec3(base_positions[i1][0], base_positions[i1][1], base_positions[i1][2]);
+            p2 = glm::vec3(base_positions[i2][0], base_positions[i2][1], base_positions[i2][2]);
+
+            edge1 = p1 - p0;
+            edge2 = p2 - p0;
+            normal = glm::cross(edge1, edge2);
+        }
+
+        normal = glm::normalize(normal);
+
+        const uint32_t face_indices[3] = {i0, i1, i2};
+
+        const float face_uv[3][2] = {
+            {0.0f, 0.0f},
+            {1.0f, 0.0f},
+            {0.5f, 1.0f}
+        };
+
+        for (int j = 0; j < 3; ++j) {
+            uint32_t idx = face_indices[j];
+
+            Vertex v{};
+
+            for (int k = 0; k < 3; ++k) {
+                v.position[k] = base_positions[idx][k];
+                v.color[k] = base_colors[idx][k];
+            }
+
             v.normal[0] = normal.x;
             v.normal[1] = normal.y;
             v.normal[2] = normal.z;
-            v.color[0] = base_colors[idx][0];
-            v.color[1] = base_colors[idx][1];
-            v.color[2] = base_colors[idx][2];
+
+            v.uv[0] = face_uv[j][0];
+            v.uv[1] = face_uv[j][1];
+
             vertices.push_back(v);
         }
     }

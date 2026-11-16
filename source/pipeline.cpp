@@ -4,9 +4,11 @@
 #include <vector>
 #include <iostream>
 #include <cstdint>
+#include <cstddef>
 
 #include "graphics_internal.hpp"
 #include "uniforms.hpp"
+#include "octahedron.hpp"
 
 namespace pipeline {
 
@@ -75,7 +77,7 @@ bool create(VkRenderPass render_pass) {
     const VkVertexInputBindingDescription vertex_bindings[] = {
         {
             .binding = 0,
-            .stride = sizeof(float) * 9,
+            .stride = sizeof(octahedron::Vertex),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
         },
     };
@@ -91,21 +93,27 @@ bool create(VkRenderPass render_pass) {
             .location = 1,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = sizeof(float) * 3,
+            .offset = offsetof(octahedron::Vertex, normal),
         },
         {
             .location = 2,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = sizeof(float) * 6,
+            .offset = offsetof(octahedron::Vertex, color),
         },
+        {
+            .location = 3,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(octahedron::Vertex, uv),
+        }
     };
 
     const VkPipelineVertexInputStateCreateInfo vertex_input = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .vertexBindingDescriptionCount = 1,
         .pVertexBindingDescriptions = vertex_bindings,
-        .vertexAttributeDescriptionCount = 3,
+        .vertexAttributeDescriptionCount = 4,
         .pVertexAttributeDescriptions = vertex_attributes,
     };
 

@@ -3,6 +3,9 @@
 layout(location = 0) in vec3 in_color;
 layout(location = 1) in vec3 in_normal;
 layout(location = 2) in vec3 in_world_position;
+layout(location = 3) in vec2 in_uv;
+
+layout(set = 1, binding = 1) uniform sampler2D albedo_texture;
 
 layout(location = 0) out vec4 out_color;
 
@@ -46,7 +49,7 @@ layout(std140, set = 1, binding = 0) uniform ModelUniforms {
 void main() {
     vec3 N = normalize(in_normal);
     vec3 V = normalize(scene.camera_position.xyz - in_world_position);
-    vec3 base_color = model_data.albedo.rgb * in_color;
+    vec3 base_color = texture(albedo_texture, in_uv).rgb;
 
     vec3 result = scene.ambient_color.rgb * base_color;
 
@@ -55,7 +58,7 @@ void main() {
         vec3 H = normalize(L + V);
         float NdotL = max(dot(N, L), 0.0);
         float NdotH = max(dot(N, H), 0.0);
-        float spec = pow(NdotH, model_data.params.x);
+        float spec = NdotL > 0.0 ? pow(NdotH, model_data.params.x) : 0.0;
         result += scene.light_color.rgb * NdotL * base_color;
         result += scene.light_color.rgb * spec * model_data.specular.rgb;
     }

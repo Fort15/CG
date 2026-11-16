@@ -82,19 +82,32 @@ VkDescriptorSetLayout create_scene_layout() {
 }
 
 VkDescriptorSetLayout create_model_layout() {
-    const VkDescriptorSetLayoutBinding binding = {
-        .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+    const VkDescriptorSetLayoutBinding bindings[] = {
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+                          VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
     };
+
     const VkDescriptorSetLayoutCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &binding,
+        .bindingCount = 2,
+        .pBindings = bindings,
     };
+
     VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+
     vkCreateDescriptorSetLayout(graphics::internal::context.device, &info, nullptr, &layout);
+
     return layout;
 }
 
@@ -182,12 +195,16 @@ bool create(VmaAllocator allocator) {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 2,
         },
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = MAX_OBJECTS,
+        },
     };
 
     const VkDescriptorPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .maxSets = 1 + MAX_OBJECTS,
-        .poolSizeCount = 2,
+        .poolSizeCount = 3,
         .pPoolSizes = pool_sizes,
     };
     if (vkCreateDescriptorPool(graphics::internal::context.device, &pool_info,
@@ -276,6 +293,28 @@ bool create(VmaAllocator allocator) {
     }
 
     return true;
+}
+
+void setTexture(const textures::Texture& texture) {
+    const VkDescriptorImageInfo image_info = {
+        .sampler = texture.sampler,
+        .imageView = texture.image_view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    for (uint32_t i = 0; i < MAX_OBJECTS; ++i) {
+        const VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = model_sets[i],
+            .dstBinding = 1,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &image_info,
+        };
+
+        vkUpdateDescriptorSets(graphics::internal::context.device, 1, &write, 0, nullptr);
+    }
 }
 
 void destroy(VmaAllocator allocator) {

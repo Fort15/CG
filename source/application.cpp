@@ -9,6 +9,10 @@
 #include "pipeline.hpp"
 #include "uniforms.hpp"
 
+#include "textures.hpp"
+#include "graphics_internal.hpp"
+#include <iostream>
+
 namespace application {
 
 namespace {
@@ -62,15 +66,36 @@ struct State {
     int object_count = 4;
 } state;
 
+textures::Texture brick_texture;
+
 } // namespace
 
 bool initialize() {
-	return true;
+    textures::ImageData image;
+
+    if (!textures::loadImage("textures/brick.jpg", image)) {
+        return false;
+    }
+
+    auto allocator = graphics::internal::context.allocator;
+
+    if (!textures::createImage(allocator, image, brick_texture)) {
+        return false;
+    }
+
+    uniforms::setTexture(brick_texture);
+
+    return true;
 }
 
 void shutdown() {
 	auto& context = graphics::internal::context;
 	vkQueueWaitIdle(context.graphics_queue);
+
+    textures::destroyImage(
+        context.allocator,
+        brick_texture
+    );
 }
 
 void update([[maybe_unused]] double time) {
@@ -231,7 +256,13 @@ void update([[maybe_unused]] double time) {
     scene->view_projection = proj * view;
     scene->camera_position = glm::vec4(state.camera_position, 1.0f);
 
-    glm::vec3 light_dir_n = glm::normalize(state.light_direction);
+    glm::vec3 light_dir_n = state.light_direction;
+    if (glm::length(light_dir_n) > 0.0001f) {
+        light_dir_n = glm::normalize(light_dir_n);
+    } else {
+        light_dir_n = glm::vec3(0.0f, -1.0f, 0.0f);
+    }
+    
     scene->light_direction = glm::vec4(light_dir_n, 0.0f);
     scene->light_color = glm::vec4(state.light_color, 1.0f);
     scene->ambient_color = glm::vec4(state.ambient_color, 1.0f);

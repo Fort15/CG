@@ -108,8 +108,8 @@ int main() {
 		graphics::internal::submitAndPresent();
 	}
 
-	application::shutdown();
 err_application:
+	application::shutdown();
 	pipeline::destroy();
 err_pipeline:
 	uniforms::destroy(graphics::internal::context.allocator);
